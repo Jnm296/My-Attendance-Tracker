@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบแสดงผลเวลาเข้าแถว</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Kanit', sans-serif; background-color: #f0f2f5; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .table-wrapper { overflow-x: auto; border-radius: 10px; }
+        .table thead { background: #2c3e50; color: #fff; text-align: center; }
+        
+        .status-cell { 
+            font-weight: 600; 
+            text-align: center; 
+            min-width: 65px; 
+            transition: all 0.2s;
+            user-select: none;
+        }
+        
+        .edit-mode-active .status-cell {
+            cursor: pointer !important;
+        }
+        .edit-mode-active .status-cell:hover {
+            filter: brightness(0.9);
+            outline: 2px dashed #34495e;
+        }
+
+        .status-1 { background-color: #d1e7dd !important; color: #0f5132; }
+        .status-05 { background-color: #fff3cd !important; color: #856404; }
+        .status-0 { background-color: #f8d7da !important; color: #842029; }
+        .status-empty { background-color: #ffffff !important; color: #ccc; }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 15px;
+            border-bottom: 4px solid #34495e;
+        }
+        .header-section h3 { font-weight: 700; color: #2c3e50; letter-spacing: 1px; margin: 0; }
+        .header-section p { color: #7f8c8d; margin-top: 5px; font-weight: 600; }
+        .floating-btn {
+            position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px;
+            background-color: #28a745; color: white; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center; font-size: 30px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4); cursor: pointer;
+            transition: transform 0.3s, background-color 0.3s; z-index: 1000;
+        }
+        .floating-btn:hover { background-color: #218838; transform: scale(1.1); }
+        
+        .nav-tabs-custom { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; }
+        .nav-link-custom { cursor: pointer; padding: 10px 20px; border-radius: 10px; font-weight: 600; color: #7f8c8d; transition: 0.3s; border: 1px solid transparent; }
+        .nav-link-custom:hover { background-color: #e9ecef; color: #2c3e50; }
+        .nav-link-custom.active { background-color: #34495e; color: white; }
+        .page-content { display: none; }
+        .page-content.active { display: block; }
+
+        .switch-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 8px 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-header {
+            font-size: 13px;
+            line-height: 1.2;
+            padding: 6px 4px !important;
+        }
+        .date-header .day-name {
+            font-weight: 400;
+            opacity: 0.85;
+            font-size: 12px;
+        }
+        .date-header .day-num {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .custom-checkbox {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+        }
+
+        .day-zero-chk {
+            margin-top: 3px;
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="p-5">
+
+<div class="card p-4">
+    <div class="header-section">
+        <h3>📊 ระบบแสดงผลกิจกรรมเข้าแถว</h3>
+        <p>แผนกวิชาเทคโนโลยีธุรกิจดิจิทัล</p>
+    </div>
+
+    <div class="nav-tabs-custom">
+        <div id="tabMonthly" class="nav-link-custom active" onclick="switchPage('monthly')">📅 บันทึกกิจกรรมเข้าแถวหน้าเสาธง</div>
+        <div id="tabSummary" class="nav-link-custom" onclick="switchPage('summary')">📈 สรุปผลการเข้าแถวทั้งเทอม</div>
+    </div>
+    
+    <!-- แถบเลือกด้านบนหลัก -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="d-flex gap-3 align-items-center flex-wrap"> 
+            <!-- เลือกเดือน -->
+            <select id="monthSelect" class="form-select w-auto fw-bold text-primary">
+                <option value="jan">มกราคม</option>
+                <option value="feb">กุมภาพันธ์</option>
+                <option value="mar">มีนาคม</option>
+                <option value="apr">เมษายน</option>
+                <option value="may">พฤษภาคม</option>
+                <option value="jun">มิถุนายน</option>
+                <option value="jul">กรกฎาคม</option>
+                <option value="aug">สิงหาคม</option>
+                <option value="sep">กันยายน</option>
+                <option value="oct">ตุลาคม</option>
+                <option value="nov">พฤศจิกายน</option>
+                <option value="dec">ธันวาคม</option>
+            </select>
+
+            <!-- เลือกปี พ.ศ. (แสดงผลอัตโนมัติตามปฏิทิน) -->
+            <div class="d-flex align-items-center gap-1" id="yearSelectGroup">
+                <span class="fw-bold text-secondary" style="font-size:14px;">ปี:</span>
+                <select id="yearSelect" class="form-select w-auto fw-bold text-primary">
+                </select>
+            </div>
+            
+            <!-- เลือกห้องเรียน -->
+            <select id="classSelect" class="form-select w-auto">
+                <option value="">-- กรุณาอัปโหลดไฟล์ Excel --</option>
+            </select>
+
+            <div class="switch-container" id="editModeWrapper">
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="toggleEditMode">
+                    <label class="form-check-label fw-bold text-secondary" for="toggleEditMode" id="editModeLabel">🔒 โหมดดูข้อมูลเท่านั้น (แตะแก้ไขไม่ได้)</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button id="deleteClassBtn" class="btn btn-outline-danger d-flex align-items-center gap-1 fw-bold px-3 py-2" style="border-radius: 10px; display: none !important;">
+                ❌ ลบข้อมูลห้องนี้ในเดือนนี้
+            </button>
+            <button id="resetAllBtn" class="btn btn-danger d-flex align-items-center gap-1 fw-bold px-3 py-2" style="border-radius: 10px; background-color: #d9534f;">
+                🧹 ล้างข้อมูลทั้งหมดเพื่อขึ้นเทอมใหม่
+            </button>
+        </div>
+    </div>
+
+    <div id="pageMonthly" class="page-content active">
+        <div class="table-wrapper">
+            <table class="table table-bordered align-middle" id="attendanceTable">
+                <thead id="tableHeader">
+                    <tr>
+                        <th style="width: 70px; text-align: center;">ติ๊กมาทุกคน</th>
+                        <th style="width: 60px; text-align: center;">ลำดับ</th>
+                        <th style="min-width: 150px; text-align: center;">รหัสนักศึกษา</th>
+                        <th style="min-width: 250px;">ชื่อ-นามสกุล</th>
+                        <th style="min-width: 100px; text-align: center;">เฉลี่ย (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="5" class="text-center p-4 text-muted">ยังไม่มีข้อมูลนักศึกษา กรุณากดปุ่ม + เพื่อนำเข้าไฟล์ Excel ก่อนค่ะ</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="pageSummary" class="page-content">
+        <!-- แถบกรองการแสดงผลสรุป -->
+        <div class="card p-3 mb-3 bg-light border">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="fw-bold text-dark">🔍 แสดงผลสรุปตาม:</span>
+                <select id="summaryFilterType" class="form-select w-auto fw-bold text-secondary">
+                    <option value="all">ทั้งเทอม (ทุกเดือน)</option>
+                    <option value="month">ระบุเดือน/ปี</option>
+                </select>
+
+                <div id="summaryMonthYearGroup" class="d-flex align-items-center gap-2" style="display: none !important;">
+                    <select id="summaryMonthSelect" class="form-select w-auto fw-bold text-primary">
+                        <option value="jan">มกราคม</option>
+                        <option value="feb">กุมภาพันธ์</option>
+                        <option value="mar">มีนาคม</option>
+                        <option value="apr">เมษายน</option>
+                        <option value="may">พฤษภาคม</option>
+                        <option value="jun">มิถุนายน</option>
+                        <option value="jul">กรกฎาคม</option>
+                        <option value="aug">สิงหาคม</option>
+                        <option value="sep">กันยายน</option>
+                        <option value="oct">ตุลาคม</option>
+                        <option value="nov">พฤศจิกายน</option>
+                        <option value="dec">ธันวาคม</option>
+                    </select>
+
+                    <span class="fw-bold text-secondary" style="font-size:14px;">ปี:</span>
+                    <select id="summaryYearSelect" class="form-select w-auto fw-bold text-primary">
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info fw-bold" id="summaryInfoText">💡 หน้าสรุปนี้จะคำนวณเปอร์เซ็นต์เฉลี่ยรวมจาก "ทุกวันที่มีการเช็คชื่อจริง" ในระบบของห้องเรียนนี้</div>
+        <div class="table-wrapper">
+            <table class="table table-bordered align-middle table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 80px; text-align: center;">ลำดับ</th>
+                        <th style="width: 180px; text-align: center;">รหัสนักศึกษา</th>
+                        <th>ชื่อ-นามสกุล</th>
+                        <th style="width: 150px; text-align: center;">คะแนนมาเรียนรวม</th>
+                        <th style="width: 150px; text-align: center;">จำนวนวันที่เช็คทั้งหมด</th>
+                        <th style="width: 160px; text-align: center; background-color: #27ae60; color: white;" id="summaryPctHeader">เปอร์เซ็นต์รวมทั้งเทอม</th>
+                        <th style="width: 140px; text-align: center; background-color: #2c3e50; color: white;">ผลการประเมิน</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                    <tr><td colspan="7" class="text-center p-4 text-muted">ยังไม่มีข้อมูลสำหรับประมวลผลเทอมนี้ค่ะ</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<label for="excelFile" class="floating-btn" id="uploadLabel">
+    <span>+</span>
+</label>
+<input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;">
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+    import { getDatabase, ref, onValue, off, remove, set, update, get } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDIUuma931vfcuoi923vccX3Ifw9n2EQ6s",
+        authDomain: "studentattendancesystem-f909f.firebaseapp.com",
+        databaseURL: "https://studentattendancesystem-f909f-default-rtdb.firebaseio.com",
+        projectId: "studentattendancesystem-f909f",
+        storageBucket: "studentattendancesystem-f909f.firebasestorage.app",
+        messagingSenderId: "859590499174",
+        appId: "1:859590499174:web:c33fdcfadae035437fc6a7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let currentClass = "";
+    let currentMonth = "";
+    let currentRef = null; 
+    let activePage = "monthly"; 
+    let isEditMode = false;
+    let currentActiveDays = [];
+    let currentStudentKeys = [];
+
+    const nowYear = new Date().getFullYear();
+    const monthYears = {
+        jan: nowYear, feb: nowYear, mar: nowYear, apr: nowYear,
+        may: nowYear, jun: nowYear, jul: nowYear, aug: nowYear,
+        sep: nowYear, oct: nowYear, nov: nowYear, dec: nowYear
+    };
+
+    const monthMap = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+
+    const monthKeysByNum = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const dayShortNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+
+    // สร้างตัวเลือกปี พ.ศ.
+    function renderYearOptions(elementId, selectedYear) {
+        const yearSelect = document.getElementById(elementId);
+        if(!yearSelect) return;
+        const currentAD = new Date().getFullYear();
+        const prevAD = currentAD - 1;
+
+        yearSelect.innerHTML = `
+            <option value="${prevAD}" ${selectedYear == prevAD ? 'selected' : ''}>พ.ศ. ${prevAD + 543}</option>
+            <option value="${currentAD}" ${selectedYear == currentAD ? 'selected' : ''}>พ.ศ. ${currentAD + 543}</option>
+        `;
+    }
+
+    // ตั้งค่าเริ่มต้น
+    currentMonth = monthKeysByNum[new Date().getMonth()];
+    document.getElementById('monthSelect').value = currentMonth;
+    renderYearOptions('yearSelect', monthYears[currentMonth]);
+    renderYearOptions('summaryYearSelect', monthYears[currentMonth]);
+
+    const toggleEditMode = document.getElementById('toggleEditMode');
+    const editModeLabel = document.getElementById('editModeLabel');
+    const attendanceTable = document.getElementById('attendanceTable');
+
+    toggleEditMode.addEventListener('change', (e) => {
+        isEditMode = e.target.checked;
+        if(isEditMode) {
+            editModeLabel.innerHTML = "✏️ เปิดโหมดแก้ไข ";
+            editModeLabel.classList.remove('text-secondary');
+            editModeLabel.classList.add('text-danger');
+            attendanceTable.classList.add('edit-mode-active');
+        } else {
+            editModeLabel.innerHTML = "🔒 โหมดดูข้อมูลเท่านั้น ";
+            editModeLabel.classList.remove('text-danger');
+            editModeLabel.classList.add('text-secondary');
+            attendanceTable.classList.remove('edit-mode-active');
+        }
+    });
+
+    function cleanFirebaseKey(name) {
+        if (!name) return "";
+        return name.toString().replace(/[\.\#\$\[\]\s]/g, "");
+    }
+
+    function generateMonthWeekdays(monthKey, yearVal) {
+        const year = parseInt(yearVal) || new Date().getFullYear();
+        const monthIndex = monthMap[monthKey];
+        if (monthIndex === undefined) return [];
+
+        const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+        const weekdays = [];
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateObj = new Date(year, monthIndex, day);
+            const dayOfWeek = dateObj.getDay(); 
+            
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) { 
+                weekdays.push({
+                    dayNum: day,
+                    dayName: dayShortNames[dayOfWeek],
+                    dateKey: `day_${day}`
+                });
+            }
+        }
+        return weekdays;
+    }
+
+    function detectMonthFromFileName(fileName) {
+        const name = fileName.toLowerCase();
+        if (name.includes("มกรา") || name.includes("ม.ค.") || name.includes("jan")) return "jan";
+        if (name.includes("กุมภา") || name.includes("ก.พ.") || name.includes("feb")) return "feb";
+        if (name.includes("มีนา") || name.includes("มี.ค.") || name.includes("mar")) return "mar";
+        if (name.includes("เมษา") || name.includes("เม.ย.") || name.includes("apr")) return "apr";
+        if (name.includes("พฤษภา") || name.includes("พ.ค.") || name.includes("may")) return "may";
+        if (name.includes("มิถุนา") || name.includes("มิ.ย.") || name.includes("jun")) return "jun";
+        if (name.includes("กรกฎา") || name.includes("ก.ค.") || name.includes("jul")) return "jul";
+        if (name.includes("สิงหา") || name.includes("ส.ค.") || name.includes("aug")) return "aug";
+        if (name.includes("กันยา") || name.includes("ก.ย.") || name.includes("sep")) return "sep";
+        if (name.includes("ตุลา") || name.includes("ต.ค.") || name.includes("oct")) return "oct";
+        if (name.includes("พฤศจิกา") || name.includes("พ.ย.") || name.includes("nov")) return "nov";
+        if (name.includes("ธันวา") || name.includes("ธ.ค.") || name.includes("dec")) return "dec";
+        return null;
+    }
+
+    window.switchPage = function(page) {
+        activePage = page;
+        document.querySelectorAll('.nav-link-custom').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
+        
+        if(page === 'monthly') {
+            document.getElementById('tabMonthly').classList.add('active');
+            document.getElementById('pageMonthly').classList.add('active');
+            document.getElementById('monthSelect').style.display = "block";
+            document.getElementById('yearSelectGroup').style.display = "flex";
+            document.getElementById('editModeWrapper').style.display = "flex";
+            document.getElementById('uploadLabel').style.display = "flex";
+            if(currentClass) document.getElementById('deleteClassBtn').removeAttribute('style');
+            loadClassData(currentClass, currentMonth);
+        } else {
+            document.getElementById('tabSummary').classList.add('active');
+            document.getElementById('pageSummary').classList.add('active');
+            document.getElementById('monthSelect').style.display = "none"; 
+            document.getElementById('yearSelectGroup').style.display = "none";
+            document.getElementById('editModeWrapper').style.display = "none";
+            document.getElementById('uploadLabel').style.display = "none";
+            document.getElementById('deleteClassBtn').style.setProperty('display', 'none', 'important');
+            loadTermSummaryData(currentClass); 
+        }
+    }
+
+    function syncClassDropdown() {
+        const classSelect = document.getElementById('classSelect');
+        const dbRef = ref(db, 'students');
+        
+        onValue(dbRef, (snapshot) => {
+            const previousValue = classSelect.value;
+            classSelect.innerHTML = "";
+            
+            if (!snapshot.exists()) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.text = "-- ไม่มีข้อมูลในระบบ กรุณาอัปโหลดไฟล์ --";
+                classSelect.appendChild(opt);
+                document.getElementById('deleteClassBtn').style.setProperty('display', 'none', 'important');
+                loadClassData("", currentMonth);
+                return;
+            }
+            
+            const uniqueClasses = new Set();
+            snapshot.forEach((child) => {
+                if (child.key) uniqueClasses.add(child.key.trim());
+            });
+
+            let firstClass = "";
+            uniqueClasses.forEach((className) => {
+                if(!firstClass) firstClass = className;
+                const opt = document.createElement('option');
+                opt.value = className;
+                opt.text = className;
+                classSelect.appendChild(opt);
+            });
+            
+            if (previousValue && uniqueClasses.has(previousValue)) {
+                classSelect.value = previousValue;
+                currentClass = previousValue;
+            } else {
+                classSelect.value = firstClass;
+                currentClass = firstClass;
+            }
+            
+            if(currentClass) {
+                if(activePage === "monthly") {
+                    document.getElementById('deleteClassBtn').removeAttribute('style');
+                    loadClassData(currentClass, currentMonth);
+                } else {
+                    loadTermSummaryData(currentClass);
+                }
+            }
+        }, { onlyOnce: false });
+    }
+
+    syncClassDropdown();
+
+    document.getElementById('excelFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const detectedMonth = detectMonthFromFileName(file.name);
+        if (detectedMonth) {
+            currentMonth = detectedMonth;
+            document.getElementById('monthSelect').value = detectedMonth;
+            renderYearOptions('yearSelect', monthYears[currentMonth]);
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target.result);
+                const wb = XLSX.read(data, { type: 'array', cellDates: true, raw: false, cellText: true });
+                let importedSheetsCount = 0;
+
+                for (const originalSheetName of wb.SheetNames) {
+                    const sheet = wb.Sheets[originalSheetName];
+                    const rangeData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                    if (rangeData.length === 0) continue;
+
+                    const safeClassName = cleanFirebaseKey(originalSheetName);
+
+                    let studentRowIndex = -1;
+                    let idColIndex = -1;
+
+                    for (let r = 0; r < rangeData.length; r++) {
+                        const row = rangeData[r];
+                        for (let c = 0; c < row.length; c++) {
+                            let cellStr = row[c] ? row[c].toString().trim().replace(/\s+/g, '') : '';
+                            if (cellStr.includes('เลขประจำตัว') || cellStr.includes('รหัสนักศึกษา') || cellStr.includes('รหัสประจำตัว')) {
+                                idColIndex = c;
+                                studentRowIndex = r;
+                                break;
+                            }
+                            if (/^\d+$/.test(cellStr) && cellStr.length >= 7 && (cellStr.startsWith('6') || cellStr.startsWith('5'))) {
+                                idColIndex = c;
+                                studentRowIndex = r;
+                                break;
+                            }
+                        }
+                        if (idColIndex !== -1) break;
+                    }
+
+                    if (idColIndex === -1) continue;
+                    importedSheetsCount++;
+
+                    const rosterData = {};
+                    const attendanceDataMap = {};
+
+                    rangeData.forEach((row, rowIndex) => {
+                        if (rowIndex <= studentRowIndex) return; 
+                        if (!row || row.length < 2) return;
+
+                        let studentId = row[idColIndex] ? row[idColIndex].toString().trim() : "";
+                        if (studentId.includes('.')) studentId = studentId.split('.')[0];
+
+                        if (!/^\d+$/.test(studentId) || studentId.length < 5) return;
+
+                        let nameParts = [];
+                        let colLimit = Math.min(idColIndex + 4, row.length);
+                        for (let c = idColIndex + 1; c < colLimit; c++) {
+                            let val = row[c] ? row[c].toString().trim() : '';
+                            if (val && !val.includes("รวม") && !val.includes("เฉลี่ย") && !/^\d+$/.test(val)) {
+                                nameParts.push(val);
+                            }
+                        }
+                        
+                        let fullName = nameParts.join(" ").trim();
+                        if (!fullName || fullName.includes("รวม") || fullName.includes("เฉลี่ย")) return;
+
+                        rosterData[studentId] = { sid: studentId, name: fullName };
+
+                        attendanceDataMap[studentId] = { 
+                            sid: studentId, 
+                            name: fullName,
+                            attendance: {}
+                        };
+                    });
+
+                    await update(ref(db, `students/${safeClassName}/roster`), rosterData);
+                    
+                    // บันทึกแยกตาม เดือน_ปีค.ศ.
+                    const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+                    await set(ref(db, `students/${safeClassName}/${monthKeyWithYear}`), attendanceDataMap);
+                }
+
+                if (importedSheetsCount > 0) {
+                    alert(`🎉 โหลดห้องเรียนและข้อมูลนักศึกษาเรียบร้อยแล้วค่ะ!`);
+                } else {
+                    alert(`⚠️ ไม่พบข้อมูลโครงสร้างห้องเรียนที่ถูกต้องในไฟล์ค่ะ`);
+                }
+
+            } catch (err) {
+                alert("เกิดข้อผิดพลาด: " + err.message);
+            } finally {
+                e.target.value = ''; 
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    window.changeAttendanceValue = function(studentKey, dateKey, currentVal) {
+        if(!isEditMode) return;
+
+        let newVal = "";
+        if (currentVal === "" || currentVal === undefined || currentVal === null) {
+            newVal = 1;
+        } else if (currentVal === 1) {
+            newVal = 0.5;
+        } else if (currentVal === 0.5) {
+            newVal = 0;
+        } else {
+            newVal = "";
+        }
+
+        const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+        const scoreRef = ref(db, `students/${currentClass}/${monthKeyWithYear}/${studentKey}/attendance`);
+        update(scoreRef, { [dateKey]: newVal });
+    }
+
+    window.toggleAllDaysForStudent = function(studentKey, isChecked) {
+        if(!isEditMode) {
+            alert("⚠️ กรุณาเปิด 'โหมดแก้ไข' ก่อนแก้ไขคะแนนนะคะ");
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const msg = isChecked ? "คุณครูต้องการให้คะแนนนักศึกษาคนนี้เป็น 1 ทุกวันใช่หรือไม่?" : "คุณครูต้องการล้างคะแนนนักศึกษาคนนี้ให้เป็นช่องว่างทั้งหมดใช่หรือไม่?";
+        if(!confirm(msg)) {
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const updateObj = {};
+        currentActiveDays.forEach(dayObj => {
+            updateObj[dayObj.dateKey] = isChecked ? 1 : "";
+        });
+
+        const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+        const scoreRef = ref(db, `students/${currentClass}/${monthKeyWithYear}/${studentKey}/attendance`);
+        update(scoreRef, updateObj);
+    }
+
+    window.toggleAllClassDays = function(isChecked) {
+        if(!isEditMode) {
+            alert("⚠️ กรุณาเปิด 'โหมดแก้ไข' ก่อนแก้ไขคะแนนนะคะ");
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const msg = isChecked ? "คุณครูต้องการติ๊กให้คะแนน 1 กับทุกคนทั้งห้องในเดือนนี้ใช่หรือไม่?" : "คุณครูต้องการล้างคะแนนทุกคนทั้งห้องให้เป็นช่องว่างใช่หรือไม่?";
+        if(!confirm(msg)) {
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const updates = {};
+        const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+        currentStudentKeys.forEach(sKey => {
+            currentActiveDays.forEach(dayObj => {
+                updates[`students/${currentClass}/${monthKeyWithYear}/${sKey}/attendance/${dayObj.dateKey}`] = isChecked ? 1 : "";
+            });
+        });
+
+        update(ref(db), updates);
+    }
+
+    window.toggleZeroForWholeDay = function(dateKey, isChecked) {
+        if(!isEditMode) {
+            alert("⚠️ กรุณาเปิด 'โหมดแก้ไข' ก่อนแก้ไขคะแนนนะคะ");
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const msg = isChecked ? "คุณครูต้องการลบคะแนนของทุกคนในวันนี้ออก (เป็นวันหยุด) ใช่หรือไม่?" : "คุณครูต้องการคืนค่าคะแนนของทุกคนในวันนี้กลับมาเป็น 1 ทุกช่องใช่หรือไม่?";
+        if(!confirm(msg)) {
+            loadClassData(currentClass, currentMonth);
+            return;
+        }
+
+        const updates = {};
+        const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+        currentStudentKeys.forEach(sKey => {
+            updates[`students/${currentClass}/${monthKeyWithYear}/${sKey}/attendance/${dateKey}`] = isChecked ? "" : 1;
+        });
+
+        update(ref(db), updates);
+    }
+
+    async function loadClassData(className, monthName) {
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        
+        if (!className) {
+            tableHeader.innerHTML = `<tr><th style="width: 70px; text-align: center;">ติ๊กมาทุกคน</th><th style="width: 60px; text-align: center;">ลำดับ</th><th style="min-width: 150px; text-align: center;">รหัสนักศึกษา</th><th style="min-width: 250px;">ชื่อ-นามสกุล</th><th style="min-width: 100px; text-align: center;">เฉลี่ย (%)</th></tr>`;
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-muted">ยังไม่มีข้อมูลนักศึกษา กรุณากดปุ่ม + เพื่อนำเข้าไฟล์ Excel ก่อนค่ะ</td></tr>';
+            return;
+        }
+        
+        if (currentRef) off(currentRef);
+
+        const rosterSnap = await get(ref(db, `students/${className}/roster`));
+        let masterRoster = {};
+        if (rosterSnap.exists()) {
+            masterRoster = rosterSnap.val();
+        }
+
+        const selectedYearForThisMonth = monthYears[monthName];
+        currentActiveDays = generateMonthWeekdays(monthName, selectedYearForThisMonth);
+
+        // ระบุปีใน Path ดึงข้อมูล
+        const monthKeyWithYear = `${monthName}_${selectedYearForThisMonth}`;
+
+        const currentMonthSnap = await get(ref(db, `students/${className}/${monthKeyWithYear}`));
+        let monthDataForHeader = currentMonthSnap.exists() ? currentMonthSnap.val() : {};
+        let tempStudentKeys = Object.keys(masterRoster);
+        if (tempStudentKeys.length === 0) tempStudentKeys = Object.keys(monthDataForHeader);
+
+        let headerHtml = `<tr>
+            <th style="width: 85px; text-align: center; font-size:12px; vertical-align: middle;">
+                <div>ติ๊ก 1 ทั้งห้อง</div>
+                <input type="checkbox" class="custom-checkbox" onchange="toggleAllClassDays(this.checked)">
+            </th>
+            <th style="width: 60px; text-align: center; vertical-align: middle;">ลำดับ</th>
+            <th style="min-width: 130px; text-align: center; vertical-align: middle;">รหัสนักศึกษา</th>
+            <th style="min-width: 220px; vertical-align: middle;">ชื่อ-นามสกุล</th>`;
+        
+        currentActiveDays.forEach(dayObj => {
+            let isDayAllEmpty = tempStudentKeys.length > 0 && tempStudentKeys.every(sKey => {
+                const att = monthDataForHeader[sKey]?.attendance || {};
+                const val = att[dayObj.dateKey];
+                return val === "" || val === undefined || val === null;
+            });
+
+            headerHtml += `
+                <th style="min-width: 65px; text-align: center;" class="date-header">
+                    <div class="day-name">${dayObj.dayName}</div>
+                    <div class="day-num">${dayObj.dayNum}</div>
+                    <div title="ติ๊กเพื่อลบทั้งวัน / เอาติ๊กออกเพื่อคืนค่าเป็น 1" style="font-size:10px; color:#f8d7da; margin-top:2px;">
+                        ลบ
+                        <input type="checkbox" class="day-zero-chk" ${isDayAllEmpty ? 'checked' : ''} onchange="toggleZeroForWholeDay('${dayObj.dateKey}', this.checked)">
+                    </div>
+                </th>`;
+        });
+        headerHtml += `<th style="min-width: 110px; text-align: center; background-color: #34495e; color: white; vertical-align: middle;">เฉลี่ย (%)</th></tr>`;
+        tableHeader.innerHTML = headerHtml;
+
+        currentRef = ref(db, `students/${className}/${monthKeyWithYear}/`);
+        onValue(currentRef, (snapshot) => {
+            tableBody.innerHTML = ''; 
+            
+            let monthData = snapshot.exists() ? snapshot.val() : {};
+            currentStudentKeys = Object.keys(masterRoster);
+
+            if (currentStudentKeys.length === 0) {
+                currentStudentKeys = Object.keys(monthData);
+            }
+
+            if (currentStudentKeys.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="${currentActiveDays.length + 5}" class="text-center p-4 text-muted">ยังไม่มีข้อมูลของห้องนี้ในระบบค่ะ</td></tr>`;
+                return;
+            }
+            
+            let i = 1;
+            currentStudentKeys.forEach((sKey) => {
+                const rosterInfo = masterRoster[sKey] || {};
+                const monthStudentInfo = monthData[sKey] || {};
+                
+                const sid = monthStudentInfo.sid || rosterInfo.sid || sKey;
+                const name = monthStudentInfo.name || rosterInfo.name || '-';
+                const att = monthStudentInfo.attendance || {}; 
+
+                let isAllFull = currentActiveDays.length > 0 && currentActiveDays.every(d => att[d.dateKey] === 1);
+
+                let row = document.createElement('tr');
+                let html = `
+                    <td class="text-center">
+                        <input type="checkbox" class="custom-checkbox" ${isAllFull ? 'checked' : ''} onchange="toggleAllDaysForStudent('${sKey}', this.checked)">
+                    </td>
+                    <td class="text-center">${i++}</td>
+                    <td class="text-center fw-bold" style="color:#2c3e50;">${sid}</td>
+                    <td class="fw-bold">${name}</td>`;
+                
+                let sum = 0;
+                let countedDays = 0;
+                
+                currentActiveDays.forEach(dayObj => {
+                    let val = att[dayObj.dateKey];
+                    let displayVal = "";
+                    let statusClass = "status-empty";
+
+                    if (val !== undefined && val !== null && val !== "") {
+                        let numericVal = parseFloat(val);
+                        if (!isNaN(numericVal)) {
+                            displayVal = numericVal;
+                            sum += numericVal;
+                            countedDays++;
+                            statusClass = numericVal === 1 ? 'status-1' : numericVal === 0.5 ? 'status-05' : 'status-0';
+                        } else {
+                            displayVal = val;
+                        }
+                    }
+                    
+                    const safeValArg = (val === undefined || val === null) ? `""` : (isNaN(parseFloat(val)) ? `"${val}"` : parseFloat(val));
+                    html += `<td class="status-cell ${statusClass}" onclick='changeAttendanceValue("${sKey}", "${dayObj.dateKey}", ${safeValArg})'>${displayVal}</td>`;
+                });
+
+                const pct = countedDays > 0 ? ((sum / countedDays) * 100).toFixed(1) + "%" : "0.0%";
+                html += `<td class="text-center fw-bold text-success" style="font-size:16px; background-color: #f8f9fa;">${pct}</td>`;
+                row.innerHTML = html;
+                tableBody.appendChild(row);
+            });
+        });
+    }
+
+    function loadTermSummaryData(className) {
+        const summaryBody = document.getElementById('summaryTableBody');
+        const filterType = document.getElementById('summaryFilterType').value;
+        const selectedSummaryMonth = document.getElementById('summaryMonthSelect').value;
+        const selectedSummaryYear = monthYears[selectedSummaryMonth];
+        const targetKey = `${selectedSummaryMonth}_${selectedSummaryYear}`;
+
+        if (!className) {
+            summaryBody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">กรุณาเลือกหรือนำเข้าห้องเรียนก่อนค่ะ</td></tr>';
+            return;
+        }
+
+        const classRef = ref(db, `students/${className}`);
+        onValue(classRef, (snapshot) => {
+            summaryBody.innerHTML = '';
+            if (!snapshot.exists()) {
+                summaryBody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">ไม่พบข้อมูลคะแนนดิบในฐานข้อมูลห้องนี้ค่ะ</td></tr>';
+                return;
+            }
+
+            const studentSummaryMap = {}; 
+            const allData = snapshot.val(); 
+            const masterRoster = allData.roster || {};
+
+            Object.keys(masterRoster).forEach(sid => {
+                studentSummaryMap[sid] = {
+                    name: masterRoster[sid].name,
+                    totalScore: 0,
+                    totalDays: 0
+                };
+            });
+
+            Object.keys(allData).forEach(monthKey => {
+                if (monthKey.endsWith("_config") || monthKey === "roster") return; 
+                
+                if (filterType === "month") {
+                    if (monthKey !== targetKey) return;
+                }
+
+                const studentsInMonth = allData[monthKey];
+                Object.keys(studentsInMonth).forEach(pushKey => {
+                    const data = studentsInMonth[pushKey];
+                    const sid = data.sid || pushKey;
+                    const name = data.name;
+                    const att = data.attendance || {};
+
+                    if (!sid) return;
+
+                    if (!studentSummaryMap[sid]) {
+                        studentSummaryMap[sid] = { name: name, totalScore: 0, totalDays: 0 };
+                    }
+
+                    Object.keys(att).forEach(dayKey => {
+                        let val = att[dayKey];
+                        if (val !== undefined && val !== null && val !== "") {
+                            let numericVal = parseFloat(val);
+                            if (!isNaN(numericVal)) {
+                                studentSummaryMap[sid].totalScore += numericVal;
+                                studentSummaryMap[sid].totalDays++;
+                            }
+                        }
+                    });
+                });
+            });
+
+            const studentList = Object.keys(studentSummaryMap);
+            if (studentList.length === 0) {
+                summaryBody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">ยังไม่มีข้อมูลวันเข้าเรียนที่สมบูรณ์เพื่อประมวลผลค่ะ</td></tr>';
+                return;
+            }
+
+            let index = 1;
+            studentList.forEach(sid => {
+                const info = studentSummaryMap[sid];
+                const numericPct = info.totalDays > 0 ? (info.totalScore / info.totalDays) * 100 : 0;
+                const finalPctStr = numericPct.toFixed(1) + "%";
+                
+                let isPass = numericPct >= 70;
+                let statusText = isPass ? "ผ่าน" : "ไม่ผ่าน";
+                let statusBg = isPass ? "#d1e7dd" : "#f8d7da";
+                let statusColor = isPass ? "#0f5132" : "#842029";
+                
+                let row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-center">${index++}</td>
+                    <td class="text-center fw-bold text-secondary">${sid}</td>
+                    <td class="fw-bold">${info.name}</td>
+                    <td class="text-center text-success fw-bold">${info.totalScore} วัน</td>
+                    <td class="text-center text-primary fw-bold">${info.totalDays} วัน</td>
+                    <td class="text-center fw-bold text-white" style="background-color: #27ae60; font-size: 16px;">${finalPctStr}</td>
+                    <td class="text-center fw-bold" style="background-color: ${statusBg}; color: ${statusColor}; font-size: 15px;">${statusText}</td>
+                `;
+                summaryBody.appendChild(row);
+            });
+        });
+    }
+
+    document.getElementById('deleteClassBtn').addEventListener('click', () => {
+        if (!currentClass) return;
+        const monthText = document.getElementById('monthSelect').options[document.getElementById('monthSelect').selectedIndex].text;
+        const monthKeyWithYear = `${currentMonth}_${monthYears[currentMonth]}`;
+        
+        if (confirm(`⚠️ คุณครูแน่ใจใช่ไหมคะที่จะลบข้อมูลของห้อง "${currentClass}" ในเดือน "${monthText}" ออกจากระบบ?`)) {
+            Promise.all([
+                remove(ref(db, `students/${currentClass}/${monthKeyWithYear}`)),
+                remove(ref(db, `students/${currentClass}/${monthKeyWithYear}_config`))
+            ]).then(() => {
+                alert("🗑️ ลบข้อมูลเรียบร้อยแล้วค่ะ!");
+            });
+        }
+    });
+
+    document.getElementById('resetAllBtn').addEventListener('click', () => {
+        const confirm1 = confirm("🚨 แจ้งเตือนล้างระบบครั้งใหญ่!\nคุณครูกำลังจะลบข้อมูลทุกห้องเรียน ทุกเดือน รวมถึงวันที่ทั้งหมดออก\nเพื่อเริ่มเทอมใหม่ แน่ใจใช่ไหมคะ?");
+        if (confirm1) {
+            const confirm2 = prompt("กรุณาพิมพ์คำว่า RESET เพื่อยืนยันการล้างข้อมูลทั้งหมดค่ะ:");
+            if (confirm2 === "RESET") {
+                remove(ref(db, 'students')).then(() => {
+                    const currentAD = new Date().getFullYear();
+                    Object.keys(monthYears).forEach(m => monthYears[m] = currentAD);
+                    renderYearOptions('yearSelect', currentAD);
+                    renderYearOptions('summaryYearSelect', currentAD);
+                    alert("🧹 ล้างข้อมูลระบบทั้งหมดเรียบร้อยแล้วค่ะ!");
+                });
+            } else if (confirm2 !== null) {
+                alert("❌ คำสั่งไม่ถูกต้อง ยกเลิกกระบวนการเคลียร์ฐานข้อมูลค่ะ");
+            }
+        }
+    });
+
+    document.getElementById('classSelect').addEventListener('change', (e) => {
+        currentClass = e.target.value;
+        if(activePage === "monthly") {
+            loadClassData(currentClass, currentMonth);
+        } else {
+            loadTermSummaryData(currentClass);
+        }
+    });
+
+    // Event Listeners สำหรับเปลี่ยนเดือนและปี
+    document.getElementById('monthSelect').addEventListener('change', (e) => {
+        currentMonth = e.target.value;
+        renderYearOptions('yearSelect', monthYears[currentMonth]);
+        loadClassData(currentClass, currentMonth);
+    });
+
+    document.getElementById('yearSelect').addEventListener('change', (e) => {
+        monthYears[currentMonth] = parseInt(e.target.value);
+        loadClassData(currentClass, currentMonth);
+    });
+
+    // Event Listeners สำหรับหน้าสรุปผล
+    document.getElementById('summaryFilterType').addEventListener('change', (e) => {
+        const isMonthMode = e.target.value === "month";
+        const monthGroup = document.getElementById('summaryMonthYearGroup');
+        const infoText = document.getElementById('summaryInfoText');
+        const pctHeader = document.getElementById('summaryPctHeader');
+
+        if (isMonthMode) {
+            monthGroup.style.setProperty('display', 'flex', 'important');
+            infoText.innerHTML = '💡 หน้าสรุปนี้จะคำนวณเปอร์เซ็นต์เฉลี่ยจาก "วันที่มีการเช็คชื่อจริง" ของเดือนและปีที่เลือกค่ะ';
+            pctHeader.innerText = 'เปอร์เซ็นต์รวมประจำเดือน';
+        } else {
+            monthGroup.style.setProperty('display', 'none', 'important');
+            infoText.innerHTML = '💡 หน้าสรุปนี้จะคำนวณเปอร์เซ็นต์เฉลี่ยรวมจาก "ทุกวันที่มีการเช็คชื่อจริง" ในระบบของห้องเรียนนี้';
+            pctHeader.innerText = 'เปอร์เซ็นต์รวมทั้งเทอม';
+        }
+        loadTermSummaryData(currentClass);
+    });
+
+    document.getElementById('summaryMonthSelect').addEventListener('change', (e) => {
+        const selectedMonth = e.target.value;
+        renderYearOptions('summaryYearSelect', monthYears[selectedMonth]);
+        loadTermSummaryData(currentClass);
+    });
+
+    document.getElementById('summaryYearSelect').addEventListener('change', (e) => {
+        const selectedMonth = document.getElementById('summaryMonthSelect').value;
+        monthYears[selectedMonth] = parseInt(e.target.value);
+        loadTermSummaryData(currentClass);
+    });
+</script>
+
+</body>
+</html>
